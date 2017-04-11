@@ -9,8 +9,16 @@ interface Right<U> {
     value: U;
 }
 type Either<T,U> = Left<T> | Right<U>;
+
 function discChar<V>(xs: Array<[string, V]>) {
-    return [[xs[1]]]
+    let asciibucket = [];
+    for(let i = 0; i < 256; i++) {
+        asciibucket[i] = [];
+    }
+    for(let x of xs) {
+        asciibucket[x[0].charCodeAt(0)].push(x[1]);
+    }
+    return asciibucket.filter(x => x.length > 0)
 }
 
 function discInverse<K,V>(disc1: Disc<K,V>): Disc<K,V> {
@@ -85,18 +93,56 @@ function discPair<K,T,V>(disc1: Disc<K, [T, V]>, disc2: Disc<T, V>): Disc<[K, T]
     }
 }
 
-//function discList<K,V>(disc1: Disc<K, [Array<K>, V]>): Disc<Array<K>, V> {
-    //return (xs: Array<[Array<K>, V]>) => {
-        //return discMap(fromList,discSum(discUnit, (discPair(disc1, (discList(disc1))))))
-    //}
-    //function fromList<T>(xs: Array<T>): Either<T[], [T, T[]]> {
-        //if(xs.length == 0) {
-            //return {side: "left", value: []};
-        //}else{
-            //return {side: "right", value: [xs[0], xs.slice(1)]};
-        //}
-    //}
-//}
+function* ints() {
+    let i = 0;
+    while(true) {
+        yield i++;
+    }
+}
+
+
+function zip<K,T>(xs: Array<K>, ys: Array<T>): Array<[K,T]> {
+    let result = [];
+    let min_length = Math.min(xs.length, ys.length);
+    for(let i = 0; i < min_length; i++) {
+        result.push([xs[i], ys[i]]);
+    }
+    return result
+}
+
+function zipInt<T>(xs: Array<T>): Array<[number, T]> {
+    let results = [];
+    for(let i = 0; i < xs.length; i++) {
+        results.push([i, xs[i]]);
+    }
+    return results;
+}
+
+function discLexPair<K,T,V>(disc1: Disc<K, V>, disc2: Disc<T, V>): Disc<[K, T], V> {
+    return (xs: Array<[[K,T], V]>): Array<Array<V>> => {
+        let yss = disc1(xs.map((x: [[K, T], V]): [K, [T, V]] => [x[0][0], [x[0][1], x[1]]]))
+        let i = 0;
+        let zss = yss.map(ys => [ys[1][0],[i++, ys[1][1]]]);
+        return discNat(yss.length)(flatten(disc2(zss)))
+    }
+}
+
+function discList<K,V>(disc1: Disc<K, [Array<K>, V]>): Disc<Array<K>, V> {
+    return (xs: Array<[Array<K>, V]>) => {
+        if(xs.length == 0) {
+            return []
+        }else{ 
+            return discMap(fromList, discSum(discUnit, (discLexPair(disc1, (discList(disc1))))))(xs)
+        }
+    }
+    function fromList<T>(xs: Array<T>): Either<T[], [T, T[]]> {
+        if(xs.length == 0) {
+            return {side: "left", value: []};
+        }else{
+            return {side: "right", value: [xs[0], xs.slice(1)]};
+        }
+    }
+}
 
 function part<T>(disc: Disc<T,T>): (xs: Array<T>) => Array<Array<T>> {
     return (xs: Array<T>) => {
@@ -128,8 +174,33 @@ let el = [
     ];
 //let eightlistdisc = discList(eightbits);
 let pairsort = discPair(eightbits, eightbits);
-console.log("pairsort", flatten(pairsort(el)));
+//console.log("pairsort", flatten(pairsort(el)));
 //test = el.map(x => [x[0][0], [x[0][1], x[1]]]);
 //console.log("test",test);
 //console.log("eighbits", eightbits(test));
 //# sourceMappingURL=disc.js.map
+//let es = [(["c","f"], 1), (["b","g"],2),(["a","h"],3),(["a","b"],4)]
+//let us = [[[1,2], 1], [[1,1],2],[[3,1],3],[[2,4],4]]
+//let us = [, [[1,1],2],[[3,1],3],[[1,2], 1],[[2,4],4]]
+let us = [[[1,1,4], 1], [[1,2,4],2],[[1,3,2],3],[[1,2,1],4]]
+let strings = [[['x','y','c'],'xyc'], [['x','x'],'xx'],[['a','b','c'],'abc']]
+let strings2 = [['x','y','c'], ['x','x','z','w'],['a','b','c']]
+//let lexints = discList(discNat(5))
+let discString = discList(discChar);
+//console.log(lexints(us))
+
+let cel = [
+    ['b', 'b'], 
+    ['d', 'd'], 
+    ['f', 'f'], 
+    ['b', 'b'], 
+        
+    ['e', 'e'], 
+    ['t', 't'],
+    ['a', 'a'],
+
+    ['c', 'c'], 
+    ];
+
+//console.log(discChar(cel))
+console.log(discString(strings))
