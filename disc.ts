@@ -33,6 +33,11 @@ function flatten<T>(xs: T[][]): T[] {
     return results;
 }
 
+function flatMap<A,B>(xs: A[][], fn: (a:A) => B): B[] {
+    let result: B[] = [];
+    return xs.map((x: A[]): B[] => x.map(fn)).reduce((x: B[], y: B[]): B[] => x.concat(y), result);
+}
+
 function discBoolean<V>(xs: Array<[boolean, V]>): Array<Array<V>> {
     const bools: Array<keyof BooleanBucket<V>> = ["false", "true"];
     interface BooleanBucket<V> {
@@ -102,7 +107,7 @@ function* ints() {
 
 
 function zip<K,T>(xs: Array<K>, ys: Array<T>): Array<[K,T]> {
-    let result = [];
+    let result: Array<[K,T]> = [];
     let min_length = Math.min(xs.length, ys.length);
     for(let i = 0; i < min_length; i++) {
         result.push([xs[i], ys[i]]);
@@ -111,28 +116,42 @@ function zip<K,T>(xs: Array<K>, ys: Array<T>): Array<[K,T]> {
 }
 
 function zipInt<T>(xs: Array<T>): Array<[number, T]> {
-    let results = [];
+    let results: Array<[number, T]> = [];
     for(let i = 0; i < xs.length; i++) {
         results.push([i, xs[i]]);
     }
     return results;
 }
-
-function discLexPair<K,T,V>(disc1: Disc<K, V>, disc2: Disc<T, V>): Disc<[K, T], V> {
+function report<T>(x: T): T {
+    console.log(x);
+    return x
+}
+function discLexPair<K,T,V>(disc1: Disc<K, [T, V]>, disc2: Disc<T, [number, V]>): Disc<[K, T], V> {
     return (xs: Array<[[K,T], V]>): Array<Array<V>> => {
-        let yss = disc1(xs.map((x: [[K, T], V]): [K, [T, V]] => [x[0][0], [x[0][1], x[1]]]))
+        let yss: Array<Array<[T,V]>> = disc1(
+            xs.map(
+                (x: [[K, T], V]): [K, [T, V]] => [x[0][0], [x[0][1], x[1]]])
+        )
+
         let i = 0;
-        let zss = yss.map(ys => [ys[1][0],[i++, ys[1][1]]]);
-        return discNat(yss.length)(flatten(disc2(zss)))
+        let zss: Array<[T, [number, V]]> = flatMap<[T,V], [T, [number, V]]>(yss, (ys: [T,V]):[T, [number, V]] => [ys[0],[i++, ys[1]]]);
+        return discNat<V>(yss.length)(report(flatten(report(disc2(zss)))))
     }
 }
 
 function discList<K,V>(disc1: Disc<K, [Array<K>, V]>): Disc<Array<K>, V> {
-    return (xs: Array<[Array<K>, V]>) => {
-        if(xs.length == 0) {
+    return (cs: Array<[Array<K>, V]>): V[][] => {
+        if(cs.length == 0) {
             return []
         }else{ 
-            return discMap(fromList, discSum(discUnit, (discLexPair(disc1, (discList(disc1))))))(xs)
+            // type Either<T,U> = Left<T> | Right<U>;
+            //discPair<K,T,V>(disc1: Disc<K, [T, V]>, disc2: Disc<T, V>): Disc<[K, T], V>
+            // discSum<K,T,V>(disc1: Disc<K,V>, disc2: Disc<T,V>): Disc<Either<K, T>, V>
+            // discMap<K,T,V>(f: (k:K) => T, disc1: Disc<T,V>): Disc<K, V>
+            let pair: Disc<[K, K[]], V> = discPair(disc1, discList(disc1) );
+            let sum: Disc<Either<K, [K, K[]]>, V> = discSum<K, [K, K[]], V>(discUnit, (pair) );
+
+            return discMap(<(k: Array<K>) => Either<K, [K, K[]]>>fromList, sum)(cs)
         }
     }
     function fromList<T>(xs: Array<T>): Either<T[], [T, T[]]> {
@@ -157,8 +176,8 @@ function sort<T>(disc: Disc<T,T>): (xs: Array<T>) => Array<T> {
 }
 
 let eightbits = discNat(8);
-console.log(sort(discNat(4))([0, 1, 2, 1, 2, 3, 3, 2, 2, 1]));
-console.log(sort(discBoolean)([true, false, true, false, false, true]));
+//console.log(sort(discNat(4))([0, 1, 2, 1, 2, 3, 3, 2, 2, 1]));
+//console.log(sort(discBoolean)([true, false, true, false, false, true]));
 //console.log(sort(discBoolean)([]));
 let el = [
     [[1, 2], 'b'], 
@@ -173,21 +192,24 @@ let el = [
     [[2, 7], 'c'], 
     ];
 //let eightlistdisc = discList(eightbits);
-let pairsort = discPair(eightbits, eightbits);
+//let pairsort = discPair(eightbits, eightbits);
 //console.log("pairsort", flatten(pairsort(el)));
 //test = el.map(x => [x[0][0], [x[0][1], x[1]]]);
 //console.log("test",test);
 //console.log("eighbits", eightbits(test));
 //# sourceMappingURL=disc.js.map
 //let es = [(["c","f"], 1), (["b","g"],2),(["a","h"],3),(["a","b"],4)]
-//let us = [[[1,2], 1], [[1,1],2],[[3,1],3],[[2,4],4]]
+let us = [[[1,2], 1], [[1,1],2],[[3,1],3],[[2,4],4]] //2 1 4 3 // 2 3 1 4
 //let us = [, [[1,1],2],[[3,1],3],[[1,2], 1],[[2,4],4]]
-let us = [[[1,1,4], 1], [[1,2,4],2],[[1,3,2],3],[[1,2,1],4]]
+//let us = [[[1,1,4], 1], [[1,2,4],2],[[1,3,2],3],[[1,2,1],4]]
 let strings = [[['x','y','c'],'xyc'], [['x','x'],'xx'],[['a','b','c'],'abc']]
 let strings2 = [['x','y','c'], ['x','x','z','w'],['a','b','c']]
+let letterpairs = [[['x','y'],'xy'], [['x','x'],'xx'],[['a','b'],'ab']]
 //let lexints = discList(discNat(5))
-let discString = discList(discChar);
+//let discString = discList(discChar);
 //console.log(lexints(us))
+let test = discLexPair(discNat(5), discNat(5));
+console.log(test(<[[number,number], number][]>us));
 
 let cel = [
     ['b', 'b'], 
@@ -203,4 +225,5 @@ let cel = [
     ];
 
 //console.log(discChar(cel))
-console.log(discString(strings))
+//console.log(discString(strings))
+//console.log(discString(strings2))
